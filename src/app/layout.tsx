@@ -1,4 +1,6 @@
 import "./globals.css";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import AppSidebar from "@/components/app-sidebar";
 
 export default function RootLayout({
   children,
@@ -7,7 +9,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SidebarProvider>
+          <AppSidebar />
+          <main>
+            <SidebarTrigger className="min-sm:hidden" />
+            {children}
+          </main>
+        </SidebarProvider>
+      </body>
     </html>
   );
 }

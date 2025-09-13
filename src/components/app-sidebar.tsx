@@ -39,7 +39,7 @@ export default function AppSidebar() {
                 <Button
                   className={`justify-start py-5 text-sm shadow-none duration-100 ease-in-out w-full ${
                     menu === item.name
-                      ? "bg-black text-white"
+                      ? "bg-black text-white hover:bg-black"
                       : "bg-transparent text-black hover:bg-black hover:text-white"
                   }`}
                 >

@@ -19,7 +19,7 @@ export default function AppSidebar() {
   ] as const;
 
   return (
-    <Sidebar variant="floating" collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <div className="flex items-center gap-x-5">
           <div>

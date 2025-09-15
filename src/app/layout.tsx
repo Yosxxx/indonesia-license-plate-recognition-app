@@ -12,12 +12,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SidebarProvider className="flex justify-between">
+        {/* flex-col on small, flex-row on sm+ */}
+        <SidebarProvider className="flex flex-col sm:flex-row justify-between">
           <AppSidebar />
+
           <main className="flex-1">
-            <SidebarTrigger className="min-sm:hidden fixed" />
+            <SidebarTrigger className="sm:hidden fixed" />
             {children}
           </main>
+
+          {/* On small, this will drop below main; on sm+ stays on the right */}
           <DetectionResult />
         </SidebarProvider>
         <Toaster />

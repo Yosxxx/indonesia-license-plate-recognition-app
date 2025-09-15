@@ -4,8 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import base64
 import traceback
 
-from .video_infer import run_video_pipeline
 from .image_infer import run_image_pipeline
+from .video_infer import run_video_pipeline
+from .live_infer import run_live_frame 
 
 app = FastAPI()
 app.add_middleware(
@@ -44,3 +45,18 @@ async def predict_video(file: UploadFile = File(...),
         import traceback
         tb = traceback.format_exc()
         return PlainTextResponse(f"/predict-video failed:\n{e}\n\n{tb}", status_code=500)
+
+@app.post("/predict-frame")
+async def predict_frame(file: UploadFile = File(...)):
+    try:
+        img_bytes = await file.read()
+        result = run_live_frame(img_bytes, include_crops_base64=False)
+        ann_bytes = result.get("annotated_webp") or b""
+        ann_b64 = base64.b64encode(ann_bytes).decode("ascii") if ann_bytes else ""
+        return JSONResponse({
+            "detections": result.get("detections", []),
+            "annotated_webp_b64": ann_b64
+        })
+    except Exception as e:
+        tb = traceback.format_exc()
+        return PlainTextResponse(f"/predict-frame failed:\n{e}\n\n{tb}", status_code=500)

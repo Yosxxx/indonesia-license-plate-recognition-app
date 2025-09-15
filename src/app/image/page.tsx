@@ -5,6 +5,8 @@ import { FileJson2, ScrollText, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { useDetectStore } from "@/lib/detectStore";
+import { daysRemainingFromExpiry, getOriginFromPlate, nowTimestamp } from "@/lib/plate";
 
 type DetailView = "General" | "JSON";
 
@@ -26,6 +28,8 @@ export default function UploadImagePage() {
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const addMany = useDetectStore((s) => s.addMany);
+
   const predict = async () => {
     if (!file) return;
     setLoading(true);
@@ -40,6 +44,22 @@ export default function UploadImagePage() {
 
       setDetections(detections);
       setAnnotatedUrl(annotated_webp_b64 ? `data:image/webp;base64,${annotated_webp_b64}` : null);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (detections ?? []).map((d: any) => {
+        const plateSpaced: string | undefined = d?.ocr?.plate_spaced ?? d?.ocr?.canon ?? "";
+        const expiryHuman: string | undefined = d?.expiry?.human; // "MM-YY"
+
+        return {
+          plateNumber: plateSpaced || "—",
+          plateOrigin: getOriginFromPlate(plateSpaced || ""),
+          expiryDate: expiryHuman ?? "—",
+          remaining: Number.isFinite(daysRemainingFromExpiry(expiryHuman)) ? daysRemainingFromExpiry(expiryHuman) : NaN,
+          timestamp: nowTimestamp(),
+        };
+      });
+
+      addMany(rows);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(err);

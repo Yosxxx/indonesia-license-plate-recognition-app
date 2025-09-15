@@ -12,7 +12,7 @@ conda create -n DeepLearning python=3.10 -y
 conda activate DeepLearning
 
 # 2. Install Python dependencies
-pip install -r requirements.txt
+pip install -r requirements (from main branch requirements.txt)
 
 # 3. Run the FastAPI backend
 cd <project-root>
@@ -26,7 +26,11 @@ npm run dev
 # Open in browser
 # http://localhost:3000
 
-📱 Phone Setup (Same Wi-Fi Network)
+```
+
+## 📱 Phone Setup (Same Wi-Fi Network)
+
+```bash
 # 1. Start SSL proxy (maps HTTPS 3443 → localhost:3000)
 npx local-ssl-proxy --source 3443 --target 3000
 
@@ -41,8 +45,11 @@ ipconfig
 # 4. On your phone’s browser, enter:
 # https://192.168.xx.xxx:3443
 
-🛠️ Tech Stack
+```
 
+## 🛠️ Tech Stack
+
+```bash
 Backend: FastAPI, Uvicorn, Ultralytics YOLO, fast-plate-ocr, EasyOCR, OpenCV
 
 Frontend: Next.js, React, Tailwind, shadcn/ui

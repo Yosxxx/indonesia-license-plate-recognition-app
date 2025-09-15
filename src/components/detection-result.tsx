@@ -18,7 +18,7 @@ export default function DetectionResult() {
   }, [results, q]);
 
   return (
-    <div className="h-screen flex flex-col border-l bg-white w-80">
+    <div className="h-screen flex flex-col border-l bg-white w-80 ">
       {/* Header */}
       <div className="p-3 border-b flex items-center font-bold gap-x-2">
         <ChartColumnDecreasing />

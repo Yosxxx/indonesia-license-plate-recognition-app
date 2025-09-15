@@ -2,6 +2,7 @@ import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/app-sidebar";
 import DetectionResult from "./../components/detection-result";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function RootLayout({
   children,
@@ -19,6 +20,7 @@ export default function RootLayout({
           </main>
           <DetectionResult />
         </SidebarProvider>
+        <Toaster />
       </body>
     </html>
   );

@@ -4,22 +4,15 @@ import { Button } from "@/components/ui/button";
 import { FileJson2, ScrollText, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useRef, useState } from "react";
-import { Client } from "@gradio/client";
 import Image from "next/image";
 
 type DetailView = "General" | "JSON";
-type GradioFileData = {
-  url?: string;
-  path?: string;
-  name?: string | null;
-  size?: number | null;
-  meta?: any;
-};
 
 export default function UploadImagePage() {
   const [details, setDetails] = useState<DetailView>("General");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [detections, setDetections] = useState<any[] | null>(null);
   const [annotatedUrl, setAnnotatedUrl] = useState<string | null>(null);
 
@@ -37,24 +30,25 @@ export default function UploadImagePage() {
     if (!file) return;
     setLoading(true);
     try {
-      const client = await Client.connect("z6k/indonesia-license-plate-recognition");
-      // Blocks endpoint with 1 image input and 2 outputs: [annotated_img, json]
-      const res = await client.predict("/predict", [file]);
+      const form = new FormData();
+      form.append("file", file);
 
-      const img: GradioFileData | null = (res.data?.[0] as any) ?? null;
-      const json = (res.data?.[1] as any[]) ?? null;
+      const res = await fetch("/api/predict", { method: "POST", body: form });
+      if (!res.ok) throw new Error("predict failed");
 
-      setAnnotatedUrl(img?.url ?? null);
-      setDetections(json);
-      console.log(detections);
-    } catch (e) {
-      console.error(e);
+      const { detections, annotated_webp_b64 } = await res.json();
+
+      setDetections(detections);
+      setAnnotatedUrl(annotated_webp_b64 ? `data:image/webp;base64,${annotated_webp_b64}` : null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // convenience helpers (first detection)
+  // Const JSON Path
   const first = detections?.[0];
   const plateSpaced: string | undefined = first?.ocr?.plate_spaced ?? first?.ocr?.canon;
   const expiryHuman: string | undefined = first?.expiry?.human;
@@ -116,7 +110,7 @@ export default function UploadImagePage() {
             </div>
           </div>
 
-          {/* Conditional Content */}
+          {/* Details */}
           <div className="flex justify-center mt-5">
             {details === "General" && (
               <div className="border-2 w-fit rounded-md">

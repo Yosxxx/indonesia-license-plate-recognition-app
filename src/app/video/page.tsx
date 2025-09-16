@@ -30,6 +30,7 @@ type Summary = {
 };
 
 // Convert a single detection JSON into a PlateRow (or null if no OCR text)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function detToPlateRow(det: any): PlateRow | null {
   const spaced =
     det?.ocr?.plate_spaced ?? det?.ocr?.plate_plain ?? det?.ocr?.canon ?? det?.plate_spaced ?? det?.plate ?? null;

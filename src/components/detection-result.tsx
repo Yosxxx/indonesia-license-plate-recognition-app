@@ -18,7 +18,7 @@ export default function DetectionResult() {
   }, [results, q]);
 
   return (
-    <div className="h-screen flex flex-col border-l bg-white w-80 ">
+    <div className="h-screen flex flex-col border-l bg-white w-80 max-md:w-[90vw] items-center max-md:m-auto max-md:border-0 max-md:mt-5">
       {/* Header */}
       <div className="p-3 border-b flex items-center font-bold gap-x-2">
         <ChartColumnDecreasing />
@@ -26,7 +26,7 @@ export default function DetectionResult() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-y-2">
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-y-2 w-full">
         {filtered.map((plate) => (
           <div
             key={plate.plateNumber}

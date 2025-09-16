@@ -74,7 +74,7 @@ export default function UploadImagePage() {
   const expiryHuman: string | undefined = first?.expiry?.human;
 
   return (
-    <div className="flex min-h-screen justify-center items-center flex-col max-h-screen gap-y-5">
+    <div className="flex min-h-screen justify-center items-center flex-col max-h-screen gap-y-5 ">
       {/* Upload Section */}
       <div className="w-fit flex flex-col gap-y-2">
         <Input
@@ -92,7 +92,7 @@ export default function UploadImagePage() {
             onClick={predict}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Analyze
+            Process Image
           </Button>
           <Button variant="secondary" className="flex-1" onClick={handleReset}>
             Reset
@@ -140,19 +140,17 @@ export default function UploadImagePage() {
           {/* Details */}
           <div className="flex justify-center mt-5">
             {details === "General" && (
-              <div className="border-2 w-fit rounded-md">
-                <Separator className="mt-4" />
+              <div className="border-2 w-fit rounded-md bg-black text-white">
                 <div className="p-4 text-center">
                   <div className="font-bold text-2xl">{plateSpaced ?? "—"}</div>
                   <div className="text-lg">{expiryHuman ?? "—"}</div>
                 </div>
-                <Separator className="mb-4" />
               </div>
             )}
 
             {details === "JSON" && (
-              <div className="border-2 w-80 rounded-md h-60 p-4 overflow-auto overflow-y-auto">
-                <pre className="text-sm">{JSON.stringify(detections, null, 2)}</pre>
+              <div className="border-primary/20 border-1 bg-muted/40 w-80 rounded-md p-4 overflow-auto overflow-y-auto">
+                <pre className="text-xs">{JSON.stringify(detections, null, 2)}</pre>
               </div>
             )}
           </div>

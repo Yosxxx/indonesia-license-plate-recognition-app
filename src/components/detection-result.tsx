@@ -1,5 +1,5 @@
 "use client";
-import { ChartColumnDecreasing } from "lucide-react";
+import { ChartColumnDecreasing, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,42 @@ export default function DetectionResult() {
   const results = useDetectStore((s) => s.results);
   const clear = useDetectStore((s) => s.clear);
   const [q, setQ] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const filtered = useMemo(() => {
     if (!q.trim()) return results;
     const needle = q.toLowerCase();
     return results.filter((r) => r.plateNumber.toLowerCase().includes(needle));
   }, [results, q]);
+
+  const canSync = results.length > 0 && !isSyncing;
+
+  const handleSync = async () => {
+    if (!canSync) return; // guard against double clicks or empty
+    setIsSyncing(true);
+    try {
+      const payload = results.map((r) => ({
+        plateNumber: r.plateNumber,
+        expiryDate: r.expiryDate ?? null,
+        timestamp: r.timestamp,
+      }));
+      const res = await fetch("/api/sync-plates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Sync failed (${res.status})`);
+      }
+      // toast.success("Synced!");
+    } catch (err) {
+      console.error(err);
+      // toast.error(String(err));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col border-l bg-white w-80 max-md:w-[90vw] items-center max-md:m-auto max-md:border-0 max-md:mt-3">
@@ -47,19 +77,34 @@ export default function DetectionResult() {
       </div>
 
       {/* Footer */}
-      <div className="p-5 border-t flex flex-col gap-2 justify-center items-center">
-        <Input placeholder="Search plate..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="p-5 border-t flex flex-col gap-2 justify-center items-center w-full">
+        <Input placeholder="Search plate..." value={q} onChange={(e) => setQ(e.target.value)} disabled={isSyncing} />
         <div className="flex gap-2 w-full">
-          {/* “Sync” button is optional; you’re already pushing on predict */}
           <Button
             className="flex-1"
-            onClick={() => {
-              /* optional re-fetch */
-            }}
+            onClick={handleSync}
+            disabled={!canSync}
+            aria-disabled={!canSync}
+            aria-busy={isSyncing}
+            title={results.length === 0 ? "No items to sync" : undefined}
           >
-            Sync
+            {isSyncing ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Syncing…
+              </span>
+            ) : (
+              "Sync"
+            )}
           </Button>
-          <Button variant="secondary" className="flex-1" onClick={clear}>
+
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={clear}
+            disabled={isSyncing}
+            title={isSyncing ? "Please wait for sync to finish" : undefined}
+          >
             Clear
           </Button>
         </div>

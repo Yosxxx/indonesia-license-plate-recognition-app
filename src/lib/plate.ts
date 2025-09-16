@@ -1,4 +1,3 @@
-// lib/plate.ts
 export type PlateRow = {
   plateNumber: string; // e.g. "B 1970 SSW"
   plateOrigin: string; // e.g. "Jakarta"
@@ -7,7 +6,6 @@ export type PlateRow = {
   timestamp: string; // e.g. "15-09-2025 | 15:23:10"
 };
 
-// Common Indonesian prefixes (expand as you like).
 // If unknown, we'll label "Unknown".
 const ORIGIN_MAP: Record<string, string> = {
   A: "Banten",

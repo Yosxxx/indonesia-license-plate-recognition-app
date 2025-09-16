@@ -105,8 +105,15 @@ export default function UploadImagePage() {
         <div className="mt-4">
           <div className="flex gap-x-5">
             {/* Annotated image */}
-            <div className="h-[300px] w-[400px] bg-muted flex items-center justify-center rounded overflow-hidden">
-              <Image src={annotatedUrl} alt="Annotated result" width={400} height={300} unoptimized />
+            <div className="flex items-center justify-center rounded overflow-hidden">
+              <Image
+                src={annotatedUrl}
+                alt="Annotated result"
+                width={400}
+                height={300}
+                unoptimized
+                className="object-cover"
+              />
             </div>
           </div>
 

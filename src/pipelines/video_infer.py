@@ -1,16 +1,35 @@
-# video_infer.py
-import cv2, tempfile, base64
-from typing import Dict, Any, List, Optional
-import numpy as np
+import os
+import cv2
+import base64
+import tempfile
+from typing import Dict, Any, List, Optional, Tuple
+
 from .image_infer import run_image_pipeline
 
-def _bgr_to_jpeg_bytes(bgr, quality=85) -> bytes:
+# ------------------------
+# Helpers
+# ------------------------
+
+def _bgr_to_jpeg_bytes(bgr, quality: int = 85) -> bytes:
     ok, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
     return buf.tobytes() if ok else b""
 
 def _jpeg_b64(bgr) -> str:
     data = _bgr_to_jpeg_bytes(bgr)
     return base64.b64encode(data).decode("ascii")
+
+def _score(det: Dict[str, Any]) -> Tuple[int, float]:
+    """
+    Quality tuple for ranking detections of the same plate.
+    Prefer those that have expiry; tie-break by higher confidence.
+    """
+    has_expiry = 1 if (det.get("expiry", {}).get("human")) else 0
+    conf = float(det.get("conf", 0.0))
+    return (has_expiry, conf)
+
+# ------------------------
+# Main pipeline
+# ------------------------
 
 def run_video_pipeline(
     video_bytes: bytes,
@@ -19,94 +38,130 @@ def run_video_pipeline(
     max_seconds: Optional[int] = None,
     dedupe: bool = True,
 ) -> Dict[str, Any]:
-
-    # --- write to temp file ---
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
-        tmp.write(video_bytes)
-        tmp_path = tmp.name
-
-    # --- try ffmpeg backend first (Windows-friendly), then default ---
-    cap = cv2.VideoCapture(tmp_path, cv2.CAP_FFMPEG)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(tmp_path)
-    if not cap.isOpened():
-        raise RuntimeError(
-            "OpenCV could not open the uploaded video. "
-            "Use an ffmpeg-enabled OpenCV or re-encode the video (H.264 MP4)."
-        )
-
+    """
+    Process a video at ~fps_target (default 1 fps), run run_image_pipeline on each frame,
+    and summarize by plate with upgrade to the best detection (expiry/conf).
+    """
+    tmp_path = None
     try:
-        vid_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        duration = frame_count / vid_fps if vid_fps > 0 else 0.0
-        end_sec = int(duration) if duration > 0 else 0
-        if max_seconds is not None:
-            end_sec = min(end_sec, int(max_seconds))
+        # Write to temp file
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+            tmp.write(video_bytes)
+            tmp_path = tmp.name
 
-        frames: List[Dict[str, Any]] = []
-        seen: Dict[str, Dict[str, Any]] = {}
-        counts: Dict[str, int] = {}
+        # Open video (FFMPEG backend first)
+        cap = cv2.VideoCapture(tmp_path, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            raise RuntimeError(
+                "OpenCV could not open the uploaded video. "
+                "Ensure OpenCV is ffmpeg-enabled or re-encode to H.264 MP4."
+            )
 
-        # Sample exactly at t = 0,1,2,...
-        for t in range(0, end_sec + 1, max(1, int(1 / max(1e-9, fps_target)))):
-            cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
-            ok, frame = cap.read()
-            if not ok or frame is None:
-                continue
+        try:
+            vid_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            duration = (total_frames / vid_fps) if vid_fps > 0 else 0.0
 
-            frame_rec: Dict[str, Any] = {"t_sec": float(t)}
+            end_sec = int(duration) if duration > 0 else 0
+            if max_seconds is not None:
+                end_sec = min(end_sec, int(max_seconds))
 
-            # --- robust per-frame inference ---
-            try:
-                img_bytes = _bgr_to_jpeg_bytes(frame)
-                image_out = run_image_pipeline(img_bytes, include_crops_base64=False)
-                dets = image_out.get("detections", [])
-                frame_rec["detections"] = dets
-            except Exception as e:
-                # record the error on this frame and continue
-                frame_rec["detections"] = []
-                frame_rec["error"] = f"{type(e).__name__}: {e}"
+            frames: List[Dict[str, Any]] = []
+            seen: Dict[str, Dict[str, Any]] = {}
 
-                # still append frame so UI shows timeline
-                frames.append(frame_rec)
-                continue
+            step = max(1, int(round(1 / max(1e-9, fps_target))))  # whole seconds
+            for t in range(0, end_sec + 1, step):
+                cap.set(cv2.CAP_PROP_POS_MSEC, float(t) * 1000.0)
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    continue
 
-            if return_previews:
-                frame_rec["preview_jpeg_base64"] = _jpeg_b64(frame)
-            frames.append(frame_rec)
+                rec: Dict[str, Any] = {"t_sec": float(t)}
 
-            # --- dedupe summary ---
-            if dedupe:
+                try:
+                    img_bytes = _bgr_to_jpeg_bytes(frame)
+                    image_out = run_image_pipeline(img_bytes, include_crops_base64=False)
+                    dets = image_out.get("detections", [])
+                    rec["detections"] = dets
+                except Exception as e:
+                    rec["detections"] = []
+                    rec["error"] = f"{type(e).__name__}: {e}"
+                    frames.append(rec)
+                    continue
+
+                if return_previews:
+                    rec["preview_jpeg_base64"] = _jpeg_b64(frame)
+
+                frames.append(rec)
+
+                if not dedupe:
+                    continue
+
+                # Dedupe with upgrade on better frames
                 for d in dets:
-                    spaced = (
-                        (d.get("ocr") or {}).get("plate_spaced")
-                        or (d.get("ocr") or {}).get("plate_plain")
-                        or ""
-                    )
-                    if not spaced:
+                    ocr = d.get("ocr") or {}
+                    key = ocr.get("plate_plain")  # None if regex didn't match
+                    if not key:
                         continue
+
                     conf = float(d.get("conf", 0.0))
-                    if spaced not in seen:
-                        seen[spaced] = {
-                            "plate_spaced": spaced,
+                    sc = _score(d)
+
+                    if key not in seen:
+                        seen[key] = {
+                            "plate_spaced": ocr.get("plate_spaced") or key,
                             "best_conf": conf,
                             "first_seen_sec": float(t),
                             "last_seen_sec": float(t),
+                            "occurrences": 1,
+                            "best_det": d,
+                            "best_score": sc,
                         }
-                        counts[spaced] = 1
                     else:
-                        counts[spaced] += 1
-                        seen[spaced]["last_seen_sec"] = float(t)
-                        if conf > seen[spaced]["best_conf"]:
-                            seen[spaced]["best_conf"] = conf
+                        recp = seen[key]
+                        recp["last_seen_sec"] = float(t)
+                        recp["occurrences"] += 1
+                        recp["best_conf"] = max(recp["best_conf"], conf)
+
+                        if sc > recp["best_score"]:
+                            recp["best_det"] = d
+                            recp["best_score"] = sc
+                            if ocr.get("plate_spaced"):
+                                recp["plate_spaced"] = ocr["plate_spaced"]
+
+        finally:
+            cap.release()
+
+        # Build summary
+        plates_summary: List[Dict[str, Any]] = []
+        for key, recp in seen.items():
+            best = recp.get("best_det") or {}
+            best_exp = best.get("expiry", {}) if best else {}
+            plates_summary.append({
+                "plate_spaced": recp["plate_spaced"],
+                "best_conf": recp["best_conf"],
+                "first_seen_sec": recp["first_seen_sec"],
+                "last_seen_sec": recp["last_seen_sec"],
+                "occurrences": recp["occurrences"],
+                "expiry_human": best_exp.get("human"),
+                "expiry_month": best_exp.get("month"),
+                "expiry_year": best_exp.get("year"),
+                "xyxy": best.get("xyxy"),
+            })
+
+        return {
+            "frames": frames,
+            "summary": {
+                "unique_count": len(plates_summary),
+                "plates": plates_summary,
+            },
+        }
+
     finally:
-        cap.release()
-
-    plates_summary = [
-        {**v, "occurrences": counts.get(k, 1)} for k, v in seen.items()
-    ]
-
-    return {
-        "frames": frames,
-        "summary": {"unique_count": len(plates_summary), "plates": plates_summary},
-    }
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass

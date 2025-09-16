@@ -2,9 +2,18 @@
 import { create } from "zustand";
 import type { PlateRow } from "./plate";
 
+const hasExpiry = (r?: PlateRow) => !!r && !!r.expiryDate && r.expiryDate !== "—";
+
+// Prefer b over a if b has expiry and a doesn't; otherwise keep a
+const chooseBetter = (a: PlateRow | undefined, b: PlateRow): PlateRow => {
+  if (!a) return b;
+  if (hasExpiry(b) && !hasExpiry(a)) return b;
+  return a;
+};
+
 type DetectState = {
   results: PlateRow[];
-  addMany: (rows: PlateRow[]) => void; // append with de-dup
+  addMany: (rows: PlateRow[]) => void; // append/upgrade with de-dup
   clear: () => void;
 };
 
@@ -12,18 +21,21 @@ export const useDetectStore = create<DetectState>((set, get) => ({
   results: [],
   addMany: (rows) => {
     const current = get().results;
-    const seen = new Set(current.map((r) => r.plateNumber));
-    const dedupedToAdd: PlateRow[] = [];
+    const map = new Map<string, PlateRow>();
 
-    for (const r of rows) {
-      if (!seen.has(r.plateNumber)) {
-        dedupedToAdd.push(r);
-        seen.add(r.plateNumber);
-      }
+    // seed with current results
+    for (const r of current) {
+      map.set(r.plateNumber, r);
     }
 
-    // Newest first (prepend), keep list reasonably small if you want
-    const next = [...dedupedToAdd, ...current];
+    // merge new rows with upgrade rule
+    for (const r of rows) {
+      const prev = map.get(r.plateNumber);
+      map.set(r.plateNumber, chooseBetter(prev, r));
+    }
+
+    // newest first (prepend semantics)
+    const next = Array.from(map.values()).reverse();
     set({ results: next });
   },
   clear: () => set({ results: [] }),

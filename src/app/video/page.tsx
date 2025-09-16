@@ -1,5 +1,4 @@
 // app/video/page.tsx (Next.js App Router)
-// If you're using Pages Router, place as pages/video.tsx with default export.
 "use client";
 import { useState } from "react";
 import { useDetectStore } from "@/lib/detectStore";
@@ -19,6 +18,9 @@ type Summary = {
     first_seen_sec: number;
     last_seen_sec: number;
     occurrences: number;
+    expiry_human?: string | null;
+    expiry_month?: number | null;
+    expiry_year?: number | null;
   }[];
 };
 
@@ -40,13 +42,24 @@ function detToPlateRow(det: any): PlateRow | null {
   };
 }
 
+// ---------- NEW HELPERS: upgrade-merge logic ----------
+const hasExpiry = (row: PlateRow | undefined) => !!row && !!row.expiryDate && row.expiryDate !== "—";
+
+// Prefer b over a if b has an expiry and a doesn't; else keep a.
+// (Extend here if you want tie-breakers like higher confidence.)
+const chooseBetter = (a: PlateRow | undefined, b: PlateRow): PlateRow => {
+  if (!a) return b;
+  if (hasExpiry(b) && !hasExpiry(a)) return b;
+  return a;
+};
+
 export default function UploadVideoPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [frames, setFrames] = useState<Frame[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
 
-  // Store action: append (dedup) into the Detection Result panel
+  // Store action: append (dedup/upgrade) into the Detection Result panel
   const addMany = useDetectStore((s) => s.addMany);
 
   const handleUpload = async () => {
@@ -59,6 +72,7 @@ export default function UploadVideoPage() {
       const form = new FormData();
       form.append("file", file);
 
+      // Your API route that proxies to FastAPI /predict-video
       const res = await fetch("/api/predict/video", {
         method: "POST",
         body: form,
@@ -73,42 +87,40 @@ export default function UploadVideoPage() {
       setFrames(framesResp);
       setSummary(summaryResp);
 
-      // --- Gather unique PlateRows from frames ---
-      const seen = new Set<string>();
-      const batch: PlateRow[] = [];
+      // ---------- CHANGED: build best-per-plate with upgrades ----------
+      const byPlate = new Map<string, PlateRow>();
 
+      // (1) Merge from frames (upgrade when later row has expiry)
       for (const f of framesResp) {
         for (const det of f.detections || []) {
           const row = detToPlateRow(det);
           if (!row) continue;
-          if (seen.has(row.plateNumber)) continue; // dedup within this batch
-          seen.add(row.plateNumber);
-          batch.push(row);
+          const prev = byPlate.get(row.plateNumber);
+          byPlate.set(row.plateNumber, chooseBetter(prev, row));
         }
       }
 
-      // --- Optional: also include summary plates if any missing ---
+      // (2) Merge from server summary (already best per plate on backend)
       if (summaryResp?.plates?.length) {
         for (const p of summaryResp.plates) {
           const spaced = p?.plate_spaced;
           if (!spaced) continue;
-          if (seen.has(spaced)) continue;
 
-          const row: PlateRow = {
+          const sumRow: PlateRow = {
             plateNumber: spaced,
             plateOrigin: getOriginFromPlate(spaced),
-            expiryDate: "—",
-            remaining: daysRemainingFromExpiry(undefined),
+            expiryDate: p.expiry_human || "—",
+            remaining: daysRemainingFromExpiry(p.expiry_human || undefined),
             timestamp: nowTimestamp(),
           };
-          seen.add(spaced);
-          batch.push(row);
+
+          const prev = byPlate.get(spaced);
+          byPlate.set(spaced, chooseBetter(prev, sumRow));
         }
       }
 
-      if (batch.length) {
-        addMany(batch); // prepend into the Detection Result panel; store will also dedup vs existing
-      }
+      const batch = Array.from(byPlate.values());
+      if (batch.length) addMany(batch);
     } catch (err) {
       console.error(err);
       alert("Video processing failed");
@@ -134,7 +146,8 @@ export default function UploadVideoPage() {
           <ul className="list-disc ml-6">
             {summary.plates.map((p, i) => (
               <li key={i}>
-                {p.plate_spaced} ({p.occurrences}×, best {p.best_conf.toFixed(2)})
+                {p.plate_spaced} ({p.occurrences}×, best {p.best_conf.toFixed(2)}
+                {p.expiry_human ? `, exp ${p.expiry_human}` : ""})
               </li>
             ))}
           </ul>

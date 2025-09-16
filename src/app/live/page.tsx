@@ -162,7 +162,7 @@ export default function LivePage() {
   }, [running, addMany]);
 
   return (
-    <div className="p-4">
+    <div className="p-4 flex flex-col min-h-screen justify-center items-center">
       <h2 className="text-xl font-bold mb-2">Live Recognition</h2>
 
       {/* Mirror preview when using front camera */}
@@ -170,7 +170,7 @@ export default function LivePage() {
         ref={videoRef}
         autoPlay
         playsInline
-        className="w-full max-w-lg border rounded"
+        className="w-[50vw] border rounded max-md:w-[90vw]"
         style={{ transform: cameraFacing === "user" ? "scaleX(-1)" : "none" }}
         // If you also want the captured frame mirrored when on front camera,
         // draw the canvas mirrored too (optional).

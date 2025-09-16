@@ -2,7 +2,6 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileJson2, ScrollText, Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { useDetectStore } from "@/lib/detectStore";

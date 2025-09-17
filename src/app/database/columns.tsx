@@ -10,7 +10,7 @@ export type DisplayRow = {
   created_at: string;
   plate_origin: string;
   remaining: number | null;
-  status: string; // "Active" | "Expired"
+  status: "Active" | "Expired" | "Unknown";
 };
 
 const fmtDate = (d?: string | null) => {
@@ -54,12 +54,16 @@ export const columns: ColumnDef<DisplayRow>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) =>
-      row.original.status === "Expired" ? (
-        <span className="text-red-600 font-semibold">Expired</span>
-      ) : (
-        <span className="text-green-600 font-semibold">Active</span>
-      ),
+    cell: ({ row }) => {
+      const status = row.original.status;
+      if (status === "Expired") {
+        return <span className="text-red-600 font-semibold">Expired</span>;
+      }
+      if (status === "Active") {
+        return <span className="text-green-600 font-semibold">Active</span>;
+      }
+      return <span className="text-gray-500 font-semibold">Unknown</span>;
+    },
   },
   {
     accessorKey: "detected_at",

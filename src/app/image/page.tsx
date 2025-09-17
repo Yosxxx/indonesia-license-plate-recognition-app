@@ -36,7 +36,7 @@ export default function UploadImagePage() {
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch("/api/predict", { method: "POST", body: form });
+      const res = await fetch("/api/predict/image", { method: "POST", body: form });
       if (!res.ok) throw new Error("predict failed");
 
       const { detections, annotated_webp_b64 } = await res.json();

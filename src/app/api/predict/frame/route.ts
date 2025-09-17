@@ -1,6 +1,3 @@
-// app/api/predict/frame/route.ts
-export const runtime = "nodejs"; // ensure Node runtime (not Edge)
-
 const PY_BACKEND = process.env.PY_BACKEND_URL ?? "http://localhost:8000";
 
 export async function POST(req: Request) {

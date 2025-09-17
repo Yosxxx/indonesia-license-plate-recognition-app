@@ -13,7 +13,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 const PAGE_SIZE = 15;
 
 // Days remaining to the end of the expiry month (local/WIB)
-function daysRemainingFromISO(expISO: string | null): number | null {
+function daysRemainingFromISO(expISO: string | null | undefined): number | null {
   if (!expISO) return null;
   const d = new Date(expISO); // stored as YYYY-MM-01
   if (isNaN(d.getTime())) return null;
@@ -44,7 +44,9 @@ export default function DatabasePage() {
 
     let query = supabase
       .from("plates")
-      .select("id, plate_number, exp_date, detected_at, created_at", { count: "exact" })
+      .select("id, plate_number, exp_date, detected_at, created_at", {
+        count: "exact",
+      })
       .order("detected_at", { ascending: false })
       .range(from, to);
 
@@ -58,16 +60,21 @@ export default function DatabasePage() {
       setTotal(0);
     } else {
       const enriched: DisplayRow[] = (data ?? []).map((r) => {
-        const remaining = daysRemainingFromISO(r.exp_date);
+        const expISO = r.exp_date ?? null;
+        const remaining = daysRemainingFromISO(expISO);
+
+        const status: DisplayRow["status"] =
+          expISO === null ? "Unknown" : remaining !== null && remaining <= 0 ? "Expired" : "Active";
+
         return {
           id: String(r.id),
           plate_number: r.plate_number,
-          exp_date: r.exp_date,
+          exp_date: expISO, // can be null
           detected_at: r.detected_at,
           created_at: r.created_at,
           plate_origin: getOriginFromPlate(r.plate_number),
           remaining,
-          status: remaining !== null && remaining <= 0 ? "Expired" : "Active",
+          status,
         };
       });
 

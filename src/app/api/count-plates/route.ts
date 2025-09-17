@@ -3,10 +3,13 @@ import { SupabaseClient } from "@/lib/supabase";
 
 export async function GET() {
   const supabase = SupabaseClient();
-  const { data, error } = await supabase.from("plates").select("*").order("detected_at", { ascending: false });
+
+  // Ask for exact count without fetching rows
+  const { count, error } = await supabase.from("plates").select("*", { count: "exact", head: true });
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, data });
+
+  return NextResponse.json({ ok: true, count: count ?? 0 });
 }

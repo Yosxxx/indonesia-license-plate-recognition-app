@@ -1,4 +1,3 @@
-// lib/detectStore.ts
 import { create } from "zustand";
 import type { PlateRow } from "./plate";
 

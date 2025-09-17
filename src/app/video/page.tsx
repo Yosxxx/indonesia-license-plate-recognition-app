@@ -1,4 +1,3 @@
-// app/video/page.tsx
 "use client";
 import { useRef, useState } from "react";
 import Image from "next/image";

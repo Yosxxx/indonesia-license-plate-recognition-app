@@ -1,4 +1,3 @@
-// src/app/api/sync-plates/route.ts
 import { NextResponse } from "next/server";
 import { SupabaseClient } from "@/lib/supabase";
 

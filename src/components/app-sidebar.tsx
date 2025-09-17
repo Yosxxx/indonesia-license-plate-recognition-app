@@ -28,6 +28,7 @@ export default function AppSidebar() {
             <div className="text-sm text-muted-foreground">Indonesia License Plate Recognition</div>
           </div>
         </div>
+        <Separator />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

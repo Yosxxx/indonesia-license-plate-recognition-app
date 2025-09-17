@@ -1,7 +1,7 @@
 import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/app-sidebar";
-import DetectionResult from "./../components/detection-result";
+import DetectionResult from "@/components/detection-result";
 import { Toaster } from "@/components/ui/sonner";
 
 export default function RootLayout({

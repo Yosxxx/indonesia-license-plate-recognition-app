@@ -11,9 +11,9 @@ import os, re, cv2
 from typing import List, Dict, Any, Tuple, Optional
 
 # --- Engines ---
-from fast_plate_ocr import LicensePlateRecognizer        # plate text OCR (letters+digits)
-from .model_infer import detect_plates_from_bytes        # your detector -> detections + crops
-import easyocr                                           # generic OCR for the tiny expiry string
+from fast_plate_ocr import LicensePlateRecognizer       
+from .model_infer import detect_plates_from_bytes        
+import easyocr                                           
 
 # =========================
 # Config (GPU-first)

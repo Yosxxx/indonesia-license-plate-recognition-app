@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 type Plate = {
   id: string | number;
-  plate_number: string; // adjust to your column
+  plate_number: string;
   origin?: string | null;
   detected_at: string;
 };
@@ -22,7 +22,7 @@ export default function HomePage() {
       .then((r) => r.json())
       .then((r) => r.ok && setToday(r.data ?? []));
 
-    // recent (last 50)
+    // fetch all plates
     fetch("/api/get-plates")
       .then((r) => r.json())
       .then((r) => r.ok && setRecent(r.data ?? []));

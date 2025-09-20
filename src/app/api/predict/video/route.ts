@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@gradio/client";
 
-// Local dev: "http://127.0.0.1:7860/"
-// Hugging Face Space: "your-username/your-space"
 const GRADIO_TARGET = process.env.GRADIO_TARGET ?? "http://127.0.0.1:7860/";
 
-export const runtime = "nodejs"; // ensure Node runtime (not Edge)
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // allow long processing if needed
+export const maxDuration = 300;
+
+type VideoPredictResult = [{ frames: unknown[]; summary: Record<string, unknown> }];
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,24 +15,23 @@ export async function POST(req: NextRequest) {
     const file = form.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    // Optional overrides (you can POST these from the client if you add controls)
-    const previews = true; // return preview_jpeg_base64 per frame
-    const include_crops = false; // set true to include per-detection crops
-    const max_seconds = null as number | null; // limit video length processed
+    const previews = true;
+    const include_crops = false;
+    const max_seconds = null as number | null;
 
     const client = await Client.connect(GRADIO_TARGET);
 
     const result = await client.predict("/predict_video", {
-      video_file: file, // pass File/Blob directly
-      previews, // boolean
-      max_seconds, // number | null
-      include_crops, // boolean
+      video_file: file,
+      previews,
+      max_seconds,
+      include_crops,
     });
 
-    // Your Gradio function returns one JSON object -> lives at result.data[0]
-    const payload = result.data[0];
+    // Cast result.data so TS knows it's an array with one object
+    const [payload] = result.data as VideoPredictResult;
 
-    return NextResponse.json(payload); // { frames: [...], summary: {...} }
+    return NextResponse.json(payload);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });

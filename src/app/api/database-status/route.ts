@@ -9,7 +9,7 @@ const supabase = createClient(
 export async function GET() {
   try {
     // Light query: only ask for one row
-    const { data, error } = await supabase.from("plates").select("id").limit(1);
+    const {error } = await supabase.from("plates").select("id").limit(1);
 
     if (error) return NextResponse.json({ status: "offline" });
 

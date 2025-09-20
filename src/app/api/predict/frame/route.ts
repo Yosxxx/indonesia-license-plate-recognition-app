@@ -1,49 +1,44 @@
-const PY_BACKEND = process.env.PY_BACKEND_URL ?? "http://localhost:8000";
+import { NextRequest, NextResponse } from "next/server";
+import { Client } from "@gradio/client";
 
-export async function POST(req: Request) {
+// Local dev: "http://127.0.0.1:7860/"
+// Hugging Face Space: "your-username/your-space"
+const GRADIO_TARGET = process.env.GRADIO_TARGET ?? "http://127.0.0.1:7860/";
+
+export const runtime = "nodejs"; // ensure Node runtime
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+export async function POST(req: NextRequest) {
   try {
-    const inForm = await req.formData();
-    const outForm = new FormData();
+    const form = await req.formData();
+    const file = form.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    // Pass through the file and any extra fields (e.g., include_crops)
-    for (const [key, val] of inForm.entries()) {
-      if (val instanceof File) {
-        // Re-wrap to be safe in Node
-        outForm.append(key, new File([val], val.name, { type: val.type }));
-      } else {
-        outForm.append(key, String(val));
-      }
-    }
+    const include_crops = (form.get("include_crops") ?? "false").toString().toLowerCase() === "true";
 
-    const res = await fetch(`${PY_BACKEND}/predict-frame`, {
-      method: "POST",
-      body: outForm,
-      // Let fetch set the correct multipart boundary
+    const client = await Client.connect(GRADIO_TARGET);
+
+    const result = await client.predict("/predict_frame", {
+      frame: file, // pass Blob/File directly
+      include_crops, // boolean
     });
 
-    const contentType = res.headers.get("content-type") || "";
-    const bodyText = await res.text();
+    // Gradio returns [annotated, detections]
+    const annotated = result.data[0];
+    const detections = result.data[1];
 
-    if (!res.ok) {
-      return new Response(bodyText || "Upstream error", {
-        status: res.status,
-        headers: { "content-type": "text/plain" },
-      });
+    // Optional: normalize annotated image into a URL (if you want to show it)
+    let annotated_url: string | null = null;
+    if (typeof annotated === "string") {
+      annotated_url = annotated.startsWith("data:image") ? annotated : `data:image/webp;base64,${annotated}`;
+    } else if (annotated && typeof annotated === "object" && "url" in annotated) {
+      annotated_url = (annotated as any).url ?? null;
     }
 
-    // return JSON from FastAPI
-    if (contentType.includes("application/json")) {
-      return new Response(bodyText, {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-
-    // Fallback: treat as text
-    return new Response(bodyText, { status: 200 });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (e: any) {
-    return new Response(`route error: ${e?.message || e}`, { status: 500 });
+    return NextResponse.json({ detections, annotated_url });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

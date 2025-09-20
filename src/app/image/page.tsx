@@ -1,4 +1,5 @@
 "use client";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileJson2, ScrollText, Loader2 } from "lucide-react";
@@ -18,6 +19,7 @@ export default function UploadImagePage() {
   const [annotatedUrl, setAnnotatedUrl] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const addMany = useDetectStore((s) => s.addMany);
 
   const handleReset = () => {
     setFile(null);
@@ -27,8 +29,6 @@ export default function UploadImagePage() {
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const addMany = useDetectStore((s) => s.addMany);
-
   const predict = async () => {
     if (!file) return;
     setLoading(true);
@@ -37,18 +37,19 @@ export default function UploadImagePage() {
       form.append("file", file);
 
       const res = await fetch("/api/predict/image", { method: "POST", body: form });
-      if (!res.ok) throw new Error("predict failed");
+      if (!res.ok) throw new Error(`predict failed: ${res.statusText}`);
 
-      const { detections, annotated_webp_b64 } = await res.json();
+      const { detections, annotated_url, error } = await res.json();
+      if (error) throw new Error(error);
 
       setDetections(detections);
-      setAnnotatedUrl(annotated_webp_b64 ? `data:image/webp;base64,${annotated_webp_b64}` : null);
+      setAnnotatedUrl(annotated_url ?? null);
 
+      // map to your store rows
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (detections ?? []).map((d: any) => {
         const plateSpaced: string | undefined = d?.ocr?.plate_spaced ?? d?.ocr?.canon ?? "";
-        const expiryHuman: string | undefined = d?.expiry?.human; // "MM-YY"
-
+        const expiryHuman: string | undefined = d?.expiry?.human;
         return {
           plateNumber: plateSpaced || "—",
           plateOrigin: getOriginFromPlate(plateSpaced || ""),
@@ -57,23 +58,21 @@ export default function UploadImagePage() {
           timestamp: nowTimestamp(),
         };
       });
-
       addMany(rows);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Const JSON Path
+  // Derive quick details from first detection
   const first = detections?.[0];
   const plateSpaced: string | undefined = first?.ocr?.plate_spaced ?? first?.ocr?.canon;
   const expiryHuman: string | undefined = first?.expiry?.human;
 
   return (
-    <div className="flex min-h-screen justify-center items-center flex-col max-h-screen gap-y-5 ">
+    <div className="flex min-h-screen justify-center items-center flex-col max-h-screen gap-y-5 p-4">
       {/* Upload Section */}
       <div className="w-fit flex flex-col gap-y-2">
         <Input
@@ -101,45 +100,43 @@ export default function UploadImagePage() {
 
       {/* Preview & Details */}
       {annotatedUrl && detections && (
-        <div className="mt-4">
-          <div className="flex gap-x-5">
+        <div className="mt-4 w-full max-w-3xl">
+          <div className="flex gap-x-5 justify-center">
             {/* Annotated image */}
-            <div className="flex items-center justify-center rounded overflow-hidden">
+            <div className="flex items-center justify-center rounded overflow-hidden border">
               <Image
                 src={annotatedUrl}
                 alt="Annotated result"
                 width={400}
                 height={300}
                 unoptimized
-                className="object-cover"
+                className="object-contain"
               />
             </div>
           </div>
 
           {/* Toggle Buttons */}
-          <div>
-            <div className="flex gap-x-2 w-80 m-auto mt-5">
-              <Button
-                className={`flex-1 ${details === "General" ? "bg-primary text-white" : "bg-white text-black"}`}
-                onClick={() => setDetails("General")}
-              >
-                <ScrollText className="mr-2 h-4 w-4" />
-                General
-              </Button>
-              <Button
-                className={`flex-1 ${details === "JSON" ? "bg-primary text-white" : "bg-white text-black"}`}
-                onClick={() => setDetails("JSON")}
-              >
-                <FileJson2 className="mr-2 h-4 w-4" />
-                JSON
-              </Button>
-            </div>
+          <div className="flex gap-x-2 w-80 m-auto mt-5">
+            <Button
+              className={`flex-1 ${details === "General" ? "bg-primary text-white" : "bg-white text-black"}`}
+              onClick={() => setDetails("General")}
+            >
+              <ScrollText className="mr-2 h-4 w-4" />
+              General
+            </Button>
+            <Button
+              className={`flex-1 ${details === "JSON" ? "bg-primary text-white" : "bg-white text-black"}`}
+              onClick={() => setDetails("JSON")}
+            >
+              <FileJson2 className="mr-2 h-4 w-4" />
+              JSON
+            </Button>
           </div>
 
           {/* Details */}
           <div className="flex justify-center mt-5">
             {details === "General" && (
-              <div className="border-2 w-fit rounded-md bg-black text-white">
+              <div className="border w-fit rounded-md bg-black text-white">
                 <div className="p-4 text-center">
                   <div className="font-bold text-2xl">{plateSpaced ?? "—"}</div>
                   <div className="text-lg">{expiryHuman ?? "—"}</div>
@@ -148,7 +145,7 @@ export default function UploadImagePage() {
             )}
 
             {details === "JSON" && (
-              <div className="border-primary/20 border-1 bg-muted/40 w-80 rounded-md p-4 overflow-auto overflow-y-auto">
+              <div className="border-primary/20 border bg-muted/40 w-96 rounded-md p-4 overflow-auto">
                 <pre className="text-xs">{JSON.stringify(detections, null, 2)}</pre>
               </div>
             )}

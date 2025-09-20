@@ -37,10 +37,12 @@ def run_video_pipeline(
     return_previews: bool = False,
     max_seconds: Optional[int] = None,
     dedupe: bool = True,
+    include_crops_base64: bool = False,  # NEW: expose crops toggle
 ) -> Dict[str, Any]:
     """
-    Process a video at ~fps_target (default 1 fps), run run_image_pipeline on each frame,
-    and summarize by plate with upgrade to the best detection (expiry/conf).
+    Process a video at ~fps_target (default 1 fps), call run_image_pipeline on each frame,
+    attach optional plate crops to each detection, and summarize by unique plate with the
+    'best' detection (preferring ones with expiry, then higher confidence).
     """
     tmp_path = None
     try:
@@ -71,7 +73,8 @@ def run_video_pipeline(
             frames: List[Dict[str, Any]] = []
             seen: Dict[str, Dict[str, Any]] = {}
 
-            step = max(1, int(round(1 / max(1e-9, fps_target))))  # whole seconds
+            # step is in seconds because we sample by timestamp
+            step = max(1, int(round(1 / max(1e-9, fps_target))))
             for t in range(0, end_sec + 1, step):
                 cap.set(cv2.CAP_PROP_POS_MSEC, float(t) * 1000.0)
                 ok, frame = cap.read()
@@ -82,8 +85,19 @@ def run_video_pipeline(
 
                 try:
                     img_bytes = _bgr_to_jpeg_bytes(frame)
-                    image_out = run_image_pipeline(img_bytes, include_crops_base64=False)
-                    dets = image_out.get("detections", [])
+                    image_out = run_image_pipeline(
+                        img_bytes,
+                        include_crops_base64=include_crops_base64  # pass through
+                    )
+                    dets = image_out.get("detections", []) or []
+                    crops_webp = image_out.get("crops_webp") if include_crops_base64 else None
+
+                    # Attach crop bytes (as base64) back into the matching detection
+                    if include_crops_base64 and isinstance(crops_webp, list):
+                        for i, det in enumerate(dets):
+                            if i < len(crops_webp) and crops_webp[i]:
+                                det["crop_webp_b64"] = base64.b64encode(crops_webp[i]).decode("ascii")
+
                     rec["detections"] = dets
                 except Exception as e:
                     rec["detections"] = []
@@ -109,6 +123,7 @@ def run_video_pipeline(
                     conf = float(d.get("conf", 0.0))
                     sc = _score(d)
 
+                    # Save representative (and keep the best crop if available)
                     if key not in seen:
                         seen[key] = {
                             "plate_spaced": ocr.get("plate_spaced") or key,
@@ -118,6 +133,7 @@ def run_video_pipeline(
                             "occurrences": 1,
                             "best_det": d,
                             "best_score": sc,
+                            "best_crop_webp_b64": d.get("crop_webp_b64") if include_crops_base64 else None,
                         }
                     else:
                         recp = seen[key]
@@ -130,6 +146,8 @@ def run_video_pipeline(
                             recp["best_score"] = sc
                             if ocr.get("plate_spaced"):
                                 recp["plate_spaced"] = ocr["plate_spaced"]
+                            if include_crops_base64 and d.get("crop_webp_b64"):
+                                recp["best_crop_webp_b64"] = d["crop_webp_b64"]
 
         finally:
             cap.release()
@@ -149,6 +167,8 @@ def run_video_pipeline(
                 "expiry_month": best_exp.get("month"),
                 "expiry_year": best_exp.get("year"),
                 "xyxy": best.get("xyxy"),
+                # Include the best crop we saw for this plate (if requested)
+                "best_crop_webp_b64": recp.get("best_crop_webp_b64"),
             })
 
         return {

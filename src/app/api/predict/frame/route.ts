@@ -24,9 +24,11 @@ export async function POST(req: NextRequest) {
       include_crops, // boolean
     });
 
-    // Gradio returns [annotated, detections]
-    const annotated = result.data[0];
-    const detections = result.data[1];
+    // Cast result.data to any[] so TS stops complaining
+    const data = result.data as any[];
+
+    const annotated = data[0];
+    const detections = data[1];
 
     // Optional: normalize annotated image into a URL (if you want to show it)
     let annotated_url: string | null = null;

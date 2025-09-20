@@ -55,7 +55,7 @@ export default function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <Separator />
-        <div className="text-sm text-muted-foreground font-bold">System Status: Online</div>
+        <div className="text-sm text-muted-foreground font-bold">v1</div>
       </SidebarFooter>
     </Sidebar>
   );
